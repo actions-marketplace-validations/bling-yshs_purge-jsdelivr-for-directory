@@ -31084,9 +31084,9 @@ const httpClient = __nccwpck_require__(6255) // https://github.com/actions/http-
 
 // read action inputs
 const actionInput = {
-  token: core.getInput('token', { required: true }),
+  token: core.getInput('token'),
   path: core
-    .getInput('path', { required: true })
+    .getInput('path')
     .split('\n')
     .map(path => path.trim()),
   retry: parseInt(core.getInput('retry'), 10),
@@ -31113,11 +31113,11 @@ async function run() {
   } else {
     result.retry = actionInput.retry
   }
-  // Set branchName to master_branch if it's empty, else set it to retry
+  // Set branchName to default_branch if it's empty, else set it to retry
   if (actionInput.branchName === '') {
-    result.branchName = github.context.payload.repository.master_branch
+    result.branchName = github.context.payload.repository.default_branch
   } else {
-    result.branchName = actionInput.retry
+    result.branchName = actionInput.branchName
   }
   // Initialize cdnList as an empty array
   const cdnList = []
@@ -31129,7 +31129,7 @@ async function run() {
     const response = await octokit.request(
       `GET /repos/{owner}/{repo}/contents/{path}?ref=${result.branchName}`,
       {
-        owner: github.context.payload.repository.owner.name,
+        owner: github.context.actor,
         repo: github.context.payload.repository.name,
         path,
         headers: {
@@ -31146,7 +31146,7 @@ async function run() {
         continue
       }
       // Construct the URL and add it to cdnList
-      const url = `https://purge.jsdelivr.net/gh/${github.context.payload.repository.full_name}@${result.branchName}/${infoListElement.path}`
+      const url = `https://purge.jsdelivr.net/gh/${github.context.payload.repository.full_name}@${result.branchName}/${encodeURI(infoListElement.path)}`
       cdnList.push(url)
     }
   }
@@ -31166,6 +31166,12 @@ async function run() {
       // If the response status code is 200, log a success message and break the loop
       if (cdnResponse.message.statusCode === 200) {
         core.info(`✅️ ${url}`)
+        const cdnUrl = url.replace(
+          'https://purge.jsdelivr.net',
+          'https://cdn.jsdelivr.net'
+        )
+        core.info(`✅️ ${cdnUrl}`)
+        core.info(`\n`)
         break
       }
     }
